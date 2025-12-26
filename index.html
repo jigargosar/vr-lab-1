@@ -4,6 +4,55 @@
   <meta charset="utf-8">
   <title>VR Graffiti</title>
   <script src="https://aframe.io/releases/1.5.0/aframe.js"></script>
+  <script>
+    AFRAME.registerComponent('paint-controls', {
+      init: function () {
+        this.isDrawing = false;
+        this.strokeContainer = null;
+        this.lastPos = null;
+        this.lineIndex = 0;
+
+        this.el.addEventListener('triggerdown', () => this.startDrawing());
+        this.el.addEventListener('triggerup', () => this.stopDrawing());
+      },
+
+      startDrawing: function () {
+        this.isDrawing = true;
+        this.lastPos = null;
+        this.lineIndex = 0;
+
+        // Container for line segments
+        this.strokeContainer = document.createElement('a-entity');
+        this.strokeContainer.classList.add('stroke');
+        this.el.sceneEl.appendChild(this.strokeContainer);
+      },
+
+      stopDrawing: function () {
+        this.isDrawing = false;
+        this.strokeContainer = null;
+        this.lastPos = null;
+      },
+
+      tick: function () {
+        if (!this.isDrawing || !this.strokeContainer) return;
+
+        const worldPos = new THREE.Vector3();
+        this.el.object3D.getWorldPosition(worldPos);
+
+        if (this.lastPos && this.lastPos.distanceTo(worldPos) > 0.005) {
+          // Add line segment
+          this.strokeContainer.setAttribute(`line__${this.lineIndex}`, {
+            start: `${this.lastPos.x} ${this.lastPos.y} ${this.lastPos.z}`,
+            end: `${worldPos.x} ${worldPos.y} ${worldPos.z}`,
+            color: '#ff66aa'
+          });
+          this.lineIndex++;
+        }
+
+        this.lastPos = worldPos.clone();
+      }
+    });
+  </script>
 </head>
 <body>
   <a-scene>
@@ -36,8 +85,8 @@
 
     <a-entity id="rig">
       <a-camera position="0 1.6 0"></a-camera>
-      <a-entity id="left-hand" laser-controls="hand: left"></a-entity>
-      <a-entity id="right-hand" laser-controls="hand: right"></a-entity>
+      <a-entity id="left-hand" laser-controls="hand: left" paint-controls></a-entity>
+      <a-entity id="right-hand" laser-controls="hand: right" paint-controls></a-entity>
     </a-entity>
   </a-scene>
 </body>

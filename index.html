@@ -14,6 +14,13 @@
 
         this.el.addEventListener('triggerdown', () => this.startDrawing());
         this.el.addEventListener('triggerup', () => this.stopDrawing());
+        this.el.addEventListener('abuttondown', () => this.clearAll());
+        this.el.addEventListener('xbuttondown', () => this.clearAll());
+      },
+
+      clearAll: function () {
+        const strokes = this.el.sceneEl.querySelectorAll('.stroke');
+        strokes.forEach(stroke => stroke.parentNode.removeChild(stroke));
       },
 
       startDrawing: function () {

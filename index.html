@@ -6,9 +6,36 @@
   <script src="https://aframe.io/releases/1.5.0/aframe.js"></script>
 </head>
 <body>
-  <a-scene background="color: #111">
+  <a-scene>
+    <!-- Sky gradient - dark above, slightly lighter at horizon -->
+    <a-sky color="#1a1a2e"></a-sky>
+
+    <!-- Grid floor for spatial reference -->
+    <a-plane
+      position="0 0 0"
+      rotation="-90 0 0"
+      width="50"
+      height="50"
+      color="#2d2d44"
+      material="opacity: 0.8"
+    ></a-plane>
+
+    <!-- Grid lines on floor -->
+    <a-entity
+      geometry="primitive: plane; width: 50; height: 50"
+      position="0 0.01 0"
+      rotation="-90 0 0"
+      material="src: url(data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect width='100' height='100' fill='none' stroke='%23444466' stroke-width='1'/%3E%3C/svg%3E); repeat: 50 50; transparent: true"
+    ></a-entity>
+
+    <!-- Ambient light -->
+    <a-light type="ambient" color="#446" intensity="0.4"></a-light>
+
+    <!-- Directional light for depth -->
+    <a-light type="directional" color="#fff" intensity="0.6" position="1 2 1"></a-light>
+
     <a-entity id="rig">
-      <a-camera></a-camera>
+      <a-camera position="0 1.6 0"></a-camera>
       <a-entity id="left-hand" laser-controls="hand: left"></a-entity>
       <a-entity id="right-hand" laser-controls="hand: right"></a-entity>
     </a-entity>

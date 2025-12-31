@@ -8,6 +8,9 @@ const MIN_LINE_WIDTH = 2;
 const MAX_LINE_WIDTH = 40;
 const DEFAULT_COLOR = 0xff66aa;
 const ERASER_COLOR = 0x888888;
+const INDICATOR_REST_Z = -0.12;
+const INDICATOR_MENU_Z = -0.25;
+const ANIMATION_DURATION = 200;
 
 const COLORS = [
   0xff0000, // Red
@@ -62,6 +65,10 @@ AFRAME.registerComponent('paint-controls', {
     this.colorMenuVisible = false;
     this.eraserMode = false;
     this.indicator = null;
+    this.indicatorAnimating = false;
+    this.indicatorAnimStart = 0;
+    this.indicatorAnimFrom = INDICATOR_REST_Z;
+    this.indicatorAnimTo = INDICATOR_REST_Z;
 
     this.el.addEventListener('triggerdown', () => this.onTriggerDown());
     this.el.addEventListener('triggerup', () => this.onTriggerUp());
@@ -79,10 +86,11 @@ AFRAME.registerComponent('paint-controls', {
   },
 
   createIndicator: function () {
-    const geometry = new THREE.SphereGeometry(0.015, 16, 16);
+    const radius = this.lineWidth / 2000;
+    const geometry = new THREE.SphereGeometry(radius, 32, 32);
     const material = new THREE.MeshBasicMaterial({ color: this.currentColor });
     this.indicator = new THREE.Mesh(geometry, material);
-    this.indicator.position.set(0, 0, -0.05);
+    this.indicator.position.set(0, 0, -0.12);
     this.el.object3D.add(this.indicator);
   },
 
@@ -90,7 +98,9 @@ AFRAME.registerComponent('paint-controls', {
     if (!this.indicator) return;
     const color = this.eraserMode ? ERASER_COLOR : this.currentColor;
     this.indicator.material.color.setHex(color);
-    const scale = this.lineWidth / DEFAULT_LINE_WIDTH;
+    const baseRadius = DEFAULT_LINE_WIDTH / 2000;
+    const targetRadius = this.lineWidth / 2000;
+    const scale = targetRadius / baseRadius;
     this.indicator.scale.setScalar(scale);
   },
 
@@ -162,12 +172,14 @@ AFRAME.registerComponent('paint-controls', {
     if (this.isDrawing) return;
     this.colorMenu.visible = true;
     this.colorMenuVisible = true;
+    this.startIndicatorAnimation(INDICATOR_MENU_Z);
   },
 
   hideColorMenu: function () {
     if (!this.colorMenuVisible) return;
     this.colorMenu.visible = false;
     this.colorMenuVisible = false;
+    this.startIndicatorAnimation(INDICATOR_REST_Z);
 
     // Find closest color to controller forward direction
     const forward = new THREE.Vector3(0, 0, -1);
@@ -196,6 +208,24 @@ AFRAME.registerComponent('paint-controls', {
     this.updateIndicator();
   },
 
+  startIndicatorAnimation: function (targetZ) {
+    this.indicatorAnimating = true;
+    this.indicatorAnimStart = performance.now();
+    this.indicatorAnimFrom = this.indicator.position.z;
+    this.indicatorAnimTo = targetZ;
+  },
+
+  updateIndicatorAnimation: function () {
+    if (!this.indicatorAnimating || !this.indicator) return;
+    const elapsed = performance.now() - this.indicatorAnimStart;
+    const t = Math.min(elapsed / ANIMATION_DURATION, 1);
+    const eased = t * (2 - t);
+    this.indicator.position.z = this.indicatorAnimFrom + (this.indicatorAnimTo - this.indicatorAnimFrom) * eased;
+    if (t >= 1) {
+      this.indicatorAnimating = false;
+    }
+  },
+
   getStrokeManager: function () {
     return this.el.sceneEl.components['stroke-manager'];
   },
@@ -217,8 +247,8 @@ AFRAME.registerComponent('paint-controls', {
 
     const material = new LineMaterial({
       color: this.currentColor,
-      linewidth: this.lineWidth,
-      resolution: new THREE.Vector2(window.innerWidth, window.innerHeight)
+      linewidth: this.lineWidth / 1000,
+      worldUnits: true
     });
 
     this.currentLine = new Line2(this.geometry, material);
@@ -234,6 +264,8 @@ AFRAME.registerComponent('paint-controls', {
   },
 
   tick: function () {
+    this.updateIndicatorAnimation();
+
     if (!this.isDrawing || !this.currentLine) return;
 
     const worldPos = new THREE.Vector3();

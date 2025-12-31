@@ -270,6 +270,9 @@ AFRAME.registerComponent('paint-controls', {
 
     const worldPos = new THREE.Vector3();
     this.el.object3D.getWorldPosition(worldPos);
+    const forward = new THREE.Vector3(0, 0, INDICATOR_REST_Z);
+    forward.applyQuaternion(this.el.object3D.quaternion);
+    worldPos.add(forward);
 
     if (!this.lastPos || this.lastPos.distanceTo(worldPos) > 0.002) {
       this.positions.push(worldPos.x, worldPos.y, worldPos.z);

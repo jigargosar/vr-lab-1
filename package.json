@@ -17,6 +17,8 @@
     "vite": "^7.3.0"
   },
   "dependencies": {
-    "aframe": "^1.7.1"
+    "@iwer/devui": "^1.1.2",
+    "aframe": "^1.7.1",
+    "iwer": "^2.1.1"
   }
 }

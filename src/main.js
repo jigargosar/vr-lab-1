@@ -1,4 +1,26 @@
-import 'aframe';
+import { XRDevice, metaQuest3 } from 'iwer';
+import { DevUI } from '@iwer/devui';
+
+async function setupXREmulation() {
+  const nativeVR = navigator.xr
+    ? await navigator.xr.isSessionSupported('immersive-vr')
+    : false;
+
+  if (!nativeVR) {
+    const xrDevice = new XRDevice(metaQuest3);
+    xrDevice.ipd = 0;
+    xrDevice.installRuntime();
+    xrDevice.installDevUI(DevUI);
+    console.log('IWER emulation active');
+  } else {
+    console.log('Native VR available, skipping IWER');
+  }
+}
+
+// await setupXREmulation();
+
+// Dynamic import to ensure IWER is installed before A-Frame loads
+await import('aframe');
 import { Line2 } from 'three/examples/jsm/lines/Line2.js';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';

@@ -4,6 +4,11 @@ const FOLLOW_FACTOR = 0.1;
 const POSITION_DEAD_ZONE = 0.002;
 const ROTATION_DEAD_ZONE = 0.01;
 
+// Spin mechanics
+const SPIN_INPUT_DEAD_ZONE = 0;
+const SPIN_MAX_VELOCITY = 0.08;
+const SPIN_SMOOTHING = 0.15;
+
 const COLORS = [
   0xff0000, // Red
   0xff8800, // Orange
@@ -24,6 +29,14 @@ export function createGripMenu(config = {}) {
   let currentQuaternion = new THREE.Quaternion();
   let velocity = new THREE.Vector3();
 
+  // Spin state
+  let wheelAngle = 0;
+  let wheelVelocity = 0;
+  let lastDisplayedIndex = 0;
+  let visualAngle = 0;
+  const VISUAL_LERP = 0.25;
+  const wheelGroup = new THREE.Group();
+
   // Create color spheres in a ring
   const colorSpheres = [];
   COLORS.forEach((color, i) => {
@@ -38,8 +51,10 @@ export function createGripMenu(config = {}) {
     sphere.userData.color = color;
     sphere.userData.index = i;
     colorSpheres.push(sphere);
-    group.add(sphere);
+    wheelGroup.add(sphere);
   });
+
+  group.add(wheelGroup);
 
   // Create selection indicator arrow at top pointing down
   const arrowGroup = new THREE.Group();
@@ -64,7 +79,7 @@ export function createGripMenu(config = {}) {
     group.visible = false;
   }
 
-  function update(targetPosition, targetQuaternion) {
+  function update(targetPosition, targetQuaternion, spinInput = 0) {
     if (!group.visible) return;
 
     // Position: exponential decay with dead zone
@@ -84,6 +99,38 @@ export function createGripMenu(config = {}) {
       currentQuaternion.slerp(targetQuaternion, FOLLOW_FACTOR);
     }
     // If within dead zone, stop rotating
+
+    // Spin mechanics: joystick position -> fixed speed
+    let targetSpeed = 0;
+    if (Math.abs(spinInput) > SPIN_INPUT_DEAD_ZONE) {
+      targetSpeed = spinInput * SPIN_MAX_VELOCITY;
+    }
+
+    // Lerp to new speed (smooth speed changes only)
+    wheelVelocity += (targetSpeed - wheelVelocity) * SPIN_SMOOTHING;
+
+    // Update internal angle at current speed
+    wheelAngle += wheelVelocity;
+
+    // Calculate target snap position (discrete)
+    const colorCount = COLORS.length;
+    const anglePerColor = (Math.PI * 2) / colorCount;
+    let normalizedAngle = ((-wheelAngle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+    const displayedIndex = Math.floor((normalizedAngle + anglePerColor / 2) / anglePerColor) % colorCount;
+    const targetSnapAngle = -displayedIndex * anglePerColor;
+
+    // Lerp visual toward snap position (smooth movement, snaps into place)
+    let delta = targetSnapAngle - visualAngle;
+    // Normalize to shortest path
+    while (delta > Math.PI) delta -= Math.PI * 2;
+    while (delta < -Math.PI) delta += Math.PI * 2;
+    visualAngle += delta * VISUAL_LERP;
+    wheelGroup.rotation.z = visualAngle;
+
+    // Update selected color and track change for haptics
+    selectedColorIndex = displayedIndex;
+    const indexChanged = displayedIndex !== lastDisplayedIndex;
+    lastDisplayedIndex = displayedIndex;
 
     // Apply to group
     group.position.copy(currentPosition);

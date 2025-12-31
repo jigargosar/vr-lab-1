@@ -81,6 +81,7 @@ AFRAME.registerComponent('paint-controls', {
     this.indicatorAnimStart = 0;
     this.indicatorAnimFrom = INDICATOR_REST_Z;
     this.indicatorAnimTo = INDICATOR_REST_Z;
+    this.joystickX = 0;
 
     this.el.addEventListener('triggerdown', () => this.onTriggerDown());
     this.el.addEventListener('triggerup', () => this.onTriggerUp());
@@ -117,7 +118,13 @@ AFRAME.registerComponent('paint-controls', {
   },
 
   onThumbstick: function (e) {
+    const x = e.detail.x;
     const y = e.detail.y;
+
+    // Store x for wheel spin (used in tick when grip held)
+    this.joystickX = x;
+
+    // Size adjustment (always works)
     if (Math.abs(y) > 0.5) {
       this.lineWidth += y > 0 ? -1 : 1;
       this.lineWidth = Math.max(MIN_LINE_WIDTH, Math.min(MAX_LINE_WIDTH, this.lineWidth));
@@ -249,13 +256,13 @@ AFRAME.registerComponent('paint-controls', {
   tick: function () {
     this.updateIndicatorAnimation();
 
-    // Update grip menu position with suspension physics
+    // Update grip menu position with suspension physics and spin input
     if (this.colorMenuVisible && this.gripMenu) {
       const worldPos = new THREE.Vector3();
       const worldQuat = new THREE.Quaternion();
       this.el.object3D.getWorldPosition(worldPos);
       this.el.object3D.getWorldQuaternion(worldQuat);
-      this.gripMenu.update(worldPos, worldQuat);
+      this.gripMenu.update(worldPos, worldQuat, this.joystickX);
     }
 
     if (!this.isDrawing || !this.currentLine) return;

@@ -24,6 +24,7 @@ await import('aframe');
 import { Line2 } from 'three/examples/jsm/lines/Line2.js';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
+import { createGripMenu } from './grip-menu.js';
 
 const DEFAULT_LINE_WIDTH = 10;
 const MIN_LINE_WIDTH = 2;
@@ -33,17 +34,6 @@ const ERASER_COLOR = 0x888888;
 const INDICATOR_REST_Z = -0.12;
 const INDICATOR_MENU_Z = -0.25;
 const ANIMATION_DURATION = 200;
-
-const COLORS = [
-  0xff0000, // Red
-  0xff8800, // Orange
-  0xffff00, // Yellow
-  0x00ff00, // Green
-  0x0088ff, // Blue
-  0x8800ff, // Purple
-  0xffffff, // White
-  0x222222  // Black
-];
 
 // Shared stroke manager - attached to scene
 AFRAME.registerComponent('stroke-manager', {
@@ -83,7 +73,7 @@ AFRAME.registerComponent('paint-controls', {
     this.lastPos = null;
     this.currentColor = DEFAULT_COLOR;
     this.lineWidth = DEFAULT_LINE_WIDTH;
-    this.colorMenu = null;
+    this.gripMenu = null;
     this.colorMenuVisible = false;
     this.eraserMode = false;
     this.indicator = null;
@@ -98,12 +88,12 @@ AFRAME.registerComponent('paint-controls', {
     this.el.addEventListener('xbuttondown', () => this.clearAll());
     this.el.addEventListener('bbuttondown', () => this.undo());
     this.el.addEventListener('ybuttondown', () => this.undo());
-    this.el.addEventListener('gripdown', () => this.showColorMenu());
-    this.el.addEventListener('gripup', () => this.hideColorMenu());
+    this.el.addEventListener('gripdown', () => this.showGripMenu());
+    this.el.addEventListener('gripup', () => this.hideGripMenu());
     this.el.addEventListener('thumbstickmoved', (e) => this.onThumbstick(e));
     this.el.addEventListener('thumbstickdown', () => this.toggleEraser());
 
-    this.createColorMenu();
+    this.createGripMenu();
     this.createIndicator();
   },
 
@@ -168,61 +158,32 @@ AFRAME.registerComponent('paint-controls', {
     }
   },
 
-  createColorMenu: function () {
-    this.colorMenu = new THREE.Group();
-    const radius = 0.08;
-    const itemRadius = 0.02;
-
-    COLORS.forEach((color, i) => {
-      const angle = (i / COLORS.length) * Math.PI * 2 - Math.PI / 2;
-      const x = Math.cos(angle) * radius;
-      const y = Math.sin(angle) * radius;
-
-      const geometry = new THREE.SphereGeometry(itemRadius, 16, 16);
-      const material = new THREE.MeshBasicMaterial({ color });
-      const sphere = new THREE.Mesh(geometry, material);
-      sphere.position.set(x, y, 0);
-      sphere.userData.color = color;
-      this.colorMenu.add(sphere);
-    });
-
-    this.colorMenu.visible = false;
-    this.el.object3D.add(this.colorMenu);
+  createGripMenu: function () {
+    this.gripMenu = createGripMenu();
+    this.el.sceneEl.object3D.add(this.gripMenu.group);
   },
 
-  showColorMenu: function () {
+  showGripMenu: function () {
     if (this.isDrawing) return;
-    this.colorMenu.visible = true;
+    // Initialize position to controller position
+    const worldPos = new THREE.Vector3();
+    const worldQuat = new THREE.Quaternion();
+    this.el.object3D.getWorldPosition(worldPos);
+    this.el.object3D.getWorldQuaternion(worldQuat);
+    this.gripMenu.group.position.copy(worldPos);
+    this.gripMenu.group.quaternion.copy(worldQuat);
+    this.gripMenu.show();
     this.colorMenuVisible = true;
     this.startIndicatorAnimation(INDICATOR_MENU_Z);
   },
 
-  hideColorMenu: function () {
+  hideGripMenu: function () {
     if (!this.colorMenuVisible) return;
-    this.colorMenu.visible = false;
+    this.gripMenu.hide();
     this.colorMenuVisible = false;
     this.startIndicatorAnimation(INDICATOR_REST_Z);
-
-    // Find closest color to controller forward direction
-    const forward = new THREE.Vector3(0, 0, -1);
-    forward.applyQuaternion(this.el.object3D.quaternion);
-
-    let closestColor = this.currentColor;
-    let closestDot = -Infinity;
-
-    this.colorMenu.children.forEach(sphere => {
-      const dir = sphere.position.clone().normalize();
-      const dot = forward.dot(dir);
-      if (dot > closestDot) {
-        closestDot = dot;
-        closestColor = sphere.userData.color;
-      }
-    });
-
-    if (closestDot > 0.5) {
-      this.currentColor = closestColor;
-      this.updateIndicator();
-    }
+    this.currentColor = this.gripMenu.getColor();
+    this.updateIndicator();
   },
 
   toggleEraser: function () {
@@ -287,6 +248,15 @@ AFRAME.registerComponent('paint-controls', {
 
   tick: function () {
     this.updateIndicatorAnimation();
+
+    // Update grip menu position with suspension physics
+    if (this.colorMenuVisible && this.gripMenu) {
+      const worldPos = new THREE.Vector3();
+      const worldQuat = new THREE.Quaternion();
+      this.el.object3D.getWorldPosition(worldPos);
+      this.el.object3D.getWorldQuaternion(worldQuat);
+      this.gripMenu.update(worldPos, worldQuat);
+    }
 
     if (!this.isDrawing || !this.currentLine) return;
 

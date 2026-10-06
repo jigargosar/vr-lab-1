@@ -1,8 +1,8 @@
 const WHEEL_RADIUS = 0.08;
 const ITEM_RADIUS = 0.02;
 const FOLLOW_FACTOR = 0.1;
-const POSITION_DEAD_ZONE = 0.002;
-const ROTATION_DEAD_ZONE = 0.01;
+const POSITION_DEAD_ZONE = 0.005;
+const ROTATION_DEAD_ZONE = 0.05;
 
 // Spin mechanics
 const SPIN_INPUT_DEAD_ZONE = 0;

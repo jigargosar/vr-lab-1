@@ -25,6 +25,7 @@ import { Line2 } from 'three/examples/jsm/lines/Line2.js';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
 import { createGripMenu } from './grip-menu.js';
+import { createCardMenu } from './card-menu.js';
 
 const DEFAULT_LINE_WIDTH = 10;
 const MIN_LINE_WIDTH = 2;
@@ -34,6 +35,7 @@ const ERASER_COLOR = 0x888888;
 const INDICATOR_REST_Z = -0.12;
 const INDICATOR_MENU_Z = -0.25;
 const ANIMATION_DURATION = 200;
+const WRIST_MAX_ROLL = Math.PI / 3;  // ~60° comfortable range each direction
 
 // Shared stroke manager - attached to scene
 AFRAME.registerComponent('stroke-manager', {
@@ -74,7 +76,10 @@ AFRAME.registerComponent('paint-controls', {
     this.currentColor = DEFAULT_COLOR;
     this.lineWidth = DEFAULT_LINE_WIDTH;
     this.gripMenu = null;
+    this.cardMenu = null;
     this.colorMenuVisible = false;
+    this.gripIndicator = null;
+    this.palmFacingEye = false;
     this.eraserMode = false;
     this.indicator = null;
     this.indicatorAnimating = false;
@@ -95,7 +100,9 @@ AFRAME.registerComponent('paint-controls', {
     this.el.addEventListener('thumbstickdown', () => this.toggleEraser());
 
     this.createGripMenu();
+    this.createCardMenu();
     this.createIndicator();
+    this.createGripIndicator();
   },
 
   createIndicator: function () {
@@ -170,26 +177,46 @@ AFRAME.registerComponent('paint-controls', {
     this.el.sceneEl.object3D.add(this.gripMenu.group);
   },
 
+  createCardMenu: function () {
+    this.cardMenu = createCardMenu();
+    this.el.sceneEl.object3D.add(this.cardMenu.group);
+  },
+
+  createGripIndicator: function () {
+    const geometry = new THREE.RingGeometry(0.008, 0.012, 16);
+    const material = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      side: THREE.DoubleSide
+    });
+    this.gripIndicator = new THREE.Mesh(geometry, material);
+    this.gripIndicator.position.set(0, 0.02, -0.05);
+    this.gripIndicator.visible = false;
+    this.el.object3D.add(this.gripIndicator);
+  },
+
   showGripMenu: function () {
     if (this.isDrawing) return;
-    // Initialize position to controller position
-    const worldPos = new THREE.Vector3();
-    const worldQuat = new THREE.Quaternion();
-    this.el.object3D.getWorldPosition(worldPos);
-    this.el.object3D.getWorldQuaternion(worldQuat);
-    this.gripMenu.group.position.copy(worldPos);
-    this.gripMenu.group.quaternion.copy(worldQuat);
-    this.gripMenu.show();
+    if (!this.palmFacingEye) return;
+
+    const controllerPos = new THREE.Vector3();
+    this.el.object3D.getWorldPosition(controllerPos);
+
+    const camera = this.el.sceneEl.camera;
+    const cameraPos = new THREE.Vector3();
+    camera.getWorldPosition(cameraPos);
+
+    this.cardMenu.show(controllerPos, cameraPos);
     this.colorMenuVisible = true;
+    this.gripIndicator.visible = false;
     this.startIndicatorAnimation(INDICATOR_MENU_Z);
   },
 
   hideGripMenu: function () {
     if (!this.colorMenuVisible) return;
-    this.gripMenu.hide();
+    this.cardMenu.hide();
     this.colorMenuVisible = false;
     this.startIndicatorAnimation(INDICATOR_REST_Z);
-    this.currentColor = this.gripMenu.getColor();
+    this.currentColor = this.cardMenu.getColor();
     this.updateIndicator();
   },
 
@@ -256,13 +283,27 @@ AFRAME.registerComponent('paint-controls', {
   tick: function () {
     this.updateIndicatorAnimation();
 
-    // Update grip menu position with suspension physics and spin input
-    if (this.colorMenuVisible && this.gripMenu) {
-      const worldPos = new THREE.Vector3();
-      const worldQuat = new THREE.Quaternion();
-      this.el.object3D.getWorldPosition(worldPos);
-      this.el.object3D.getWorldQuaternion(worldQuat);
-      this.gripMenu.update(worldPos, worldQuat, this.joystickX);
+    const controllerPos = new THREE.Vector3();
+    this.el.object3D.getWorldPosition(controllerPos);
+
+    const camera = this.el.sceneEl.camera;
+    const cameraPos = new THREE.Vector3();
+    camera.getWorldPosition(cameraPos);
+
+    // Check palm facing eye (palm normal = controller Y axis)
+    const palmNormal = new THREE.Vector3(0, 1, 0).applyQuaternion(this.el.object3D.quaternion);
+    const toCamera = new THREE.Vector3().subVectors(cameraPos, controllerPos).normalize();
+    const alignment = palmNormal.dot(toCamera);
+    this.palmFacingEye = alignment > 0.5;
+
+    // Show grip indicator when palm faces eye and menu not open
+    if (this.gripIndicator && !this.colorMenuVisible) {
+      this.gripIndicator.visible = this.palmFacingEye;
+    }
+
+    // Update card menu with spatial selection
+    if (this.colorMenuVisible && this.cardMenu) {
+      this.cardMenu.update(controllerPos, cameraPos);
     }
 
     if (!this.isDrawing || !this.currentLine) return;
